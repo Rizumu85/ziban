@@ -4,7 +4,7 @@
 
 - `icon-paper-source.png`：通过内置 imagegen 生成并经用户选定的原始图，作为可复现的主素材保留。
 - `icon.png`：256 px 预览。
-- `../assets/Ziban.ico`：Windows 图标容器，包含 16、18、20、24、27、32、36、40、48、54、64、96、128、256 px；保留原图深色方形底。
+- `../assets/Ziban-paper.ico`：Windows 图标容器，包含 16、18、20、24、27、32、36、40、48、54、64、96、128、256 px；保留原图深色方形底。
 - `python tools/generate-icon.py`：只进行尺寸转换与 ICO 打包，需要 Pillow；不会重新绘制或生成图案。
 
 构建时同一 ICO 写入 EXE 资源，并随应用发布供窗口加载。运行中的旧进程需在用户下次正常打开应用时使用新版；不要强杀应用或重启 Explorer 来刷新图标。

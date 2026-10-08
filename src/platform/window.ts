@@ -2,6 +2,7 @@ import { dlopen, FFIType as T, ptr } from "bun:ffi";
 import { findProcessWindowByTitle } from "./window-lookup";
 import { dirname, resolve, basename } from "node:path";
 import { offscreen } from "../runtime";
+import { setTaskbarIdentity } from "./taskbar";
 
 export const TITLE = "字伴";
 const u = dlopen("user32.dll", {
@@ -193,7 +194,7 @@ export function setIcon() {
     basename(process.execPath).toLowerCase() === "bun.exe"
       ? resolve(import.meta.dir, "../..")
       : dirname(process.execPath);
-  const path = Buffer.from(resolve(root, "assets/Ziban.ico") + "\0", "utf16le");
+  const path = Buffer.from(resolve(root, "assets/Ziban-paper.ico") + "\0", "utf16le");
   const scale = u.symbols.GetDpiForWindow(h) / 96;
   const small = u.symbols.LoadImageW(
     null,
@@ -216,4 +217,17 @@ export function setIcon() {
     u.symbols.SendMessageW(h, 0x80, 2n, BigInt(small));
   }
   if (big) u.symbols.SendMessageW(h, 0x80, 1n, BigInt(big));
-}
+  if (basename(process.execPath).toLowerCase() !== "bun.exe") {
+    try {
+      const clearIdentity = setTaskbarIdentity(
+        h,
+        resolve(root, "Ziban.exe"),
+        resolve(root, "assets/Ziban-paper.ico"),
+      );
+      process.once("exit", () => {
+        try { clearIdentity(); } catch { /* HWND may already be destroyed. */ }
+      });
+    } catch (error) {
+      console.error("Taskbar identity could not be set:", error);
+    }
+  }}

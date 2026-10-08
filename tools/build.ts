@@ -20,11 +20,11 @@ const result = await Bun.build({
     outfile: resolve(output, "Ziban.exe"),
     windows: {
       hideConsole: true,
-      icon: resolve(root, "assets/Ziban.ico"),
+      icon: resolve(root, "assets/Ziban-paper.ico"),
       title: "字伴",
       description: "字伴 · Windows 悬浮汉字字帖",
       publisher: "Rizum",
-      version: "0.2.5.0",
+      version: "0.2.6.0",
     },
   },
   define: { "process.env.ZIBAN_INSPECT": '"0"' },

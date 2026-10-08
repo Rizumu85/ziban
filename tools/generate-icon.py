@@ -8,9 +8,9 @@ with Image.open(root / "design/icon-paper-source.png") as source:
     image = source.convert("RGBA")
     if image.width != image.height:
         raise ValueError("Icon master must be square")
-    image.save(root / "assets/Ziban.ico", sizes=[(s, s) for s in sizes])
+    image.save(root / "assets/Ziban-paper.ico", sizes=[(s, s) for s in sizes])
     image.resize((256, 256), Image.Resampling.LANCZOS).save(root / "design/icon.png")
-with Image.open(root / "assets/Ziban.ico") as icon:
+with Image.open(root / "assets/Ziban-paper.ico") as icon:
     if icon.ico.sizes() != {(s, s) for s in sizes}:
         raise ValueError("Missing ICO sizes")
     for size in icon.ico.sizes():
