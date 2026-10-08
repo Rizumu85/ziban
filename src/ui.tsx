@@ -1,4 +1,4 @@
-import { createSignal, type JSX } from "solid-js";
+import { createSignal, Show, type JSX } from "solid-js";
 import { motion, type StyleDesc } from "@gpuix/solid";
 
 import * as Tooltip from "@gpuix/solid/tooltip";
@@ -87,8 +87,22 @@ export function Button(p: {
 }) {
   const [pressed, setPressed] = createSignal(false);
   const [focused, setFocused] = createSignal(false);
+  const [hintOpen, setHintOpen] = createSignal(false);
   const action = () => {
     if (!p.disabled) p.onClick();
+  };
+  // GPUIX 0.10's asChild replaces host event props instead of composing them.
+  // Install the same handlers on Trigger, which owns the final event binding.
+  const interaction = {
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+    onClick: action,
+    onMouseDown: () => setPressed(true),
+    onMouseUp: () => setPressed(false),
+    onMouseLeave: () => setPressed(false),
+    onKeyDown: (e: { key?: string | null }) => {
+      if (e.key === "enter" || e.key === "space") action();
+    },
   };
   const content = (
     <motion.div
@@ -96,16 +110,8 @@ export function Button(p: {
       aria-label={p.label}
       aria-selected={p.selected}
       tabIndex={p.disabled ? -1 : 0}
-      testId={p.testId}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      onClick={action}
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => setPressed(false)}
-      onMouseLeave={() => setPressed(false)}
-      onKeyDown={(e) => {
-        if (e.key === "enter" || e.key === "space") action();
-      }}
+      testId={p.testId ?? `button:${p.label}`}
+      {...interaction}
       animate={{
         opacity: p.disabled ? 0.38 : pressed() ? 0.72 : 1,
         top: pressed() ? 2 : 0,
@@ -165,23 +171,41 @@ export function Button(p: {
     </motion.div>
   );
   return p.iconOnly ? (
-    <Tooltip.Root delayDuration={520}>
-      <Tooltip.Trigger asChild>{content}</Tooltip.Trigger>
-      <Tooltip.Content
-        side="bottom"
-        sideOffset={6}
-        style={{
-          padding: 7,
-          borderRadius: 7,
-          backgroundColor: p.palette.floatingSurface,
-          borderWidth: 1,
-          borderColor: p.palette.surfaceLine,
-        }}
-      >
-        <Label color={p.palette.inkSoft} size={11}>
-          {p.label}
-        </Label>
-      </Tooltip.Content>
+    <Tooltip.Root
+      delayDuration={520}
+      disableHoverableContent
+      onOpenChange={setHintOpen}
+    >
+      <Tooltip.Trigger asChild {...interaction} tabIndex={p.disabled ? -1 : 0}>
+        {content}
+      </Tooltip.Trigger>
+      <Show when={hintOpen()}>
+        {/* Put the complete surface on the anchored element itself. GPUIX 0.10
+            otherwise supplies a square dark fill behind a rounded child. */}
+        <anchored
+          testId={`hint:${p.label}`}
+          side="bottom"
+          align="center"
+          gap={6}
+          fit="snap"
+          snapMargin={8}
+          deferred
+          priority={1}
+          occlude={false}
+          style={{
+            padding: 7,
+            borderRadius: 7,
+            pointerEvents: "none",
+            backgroundColor: p.palette.floatingSurface,
+            borderWidth: 1,
+            borderColor: p.palette.surfaceLine,
+          }}
+        >
+          <Label color={p.palette.inkSoft} size={11}>
+            {p.label}
+          </Label>
+        </anchored>
+      </Show>
     </Tooltip.Root>
   ) : (
     content
@@ -196,6 +220,7 @@ export function Toggle(p: {
   return (
     <div
       role="switch"
+      testId={`switch:${p.label}`}
       aria-label={p.label}
       aria-valuetext={p.value ? "开" : "关"}
       tabIndex={0}
@@ -222,6 +247,7 @@ export function Toggle(p: {
           height: 16,
           borderRadius: 999,
           backgroundColor: "#FFFFFF",
+          pointerEvents: "none",
         }}
       />
     </div>

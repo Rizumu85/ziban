@@ -91,6 +91,29 @@ const executable =
   basename(process.execPath).toLowerCase() === "bun.exe"
     ? resolve(root, "target/release/ziban-companion.exe")
     : resolve(root, "ziban-companion.exe");
+export async function listSystemFonts(): Promise<string[]> {
+  const child = Bun.spawn([executable, "--list-fonts"], {
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+    windowsHide: true,
+    timeout: 5000,
+  });
+  const [output, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    child.exited,
+  ]);
+  if (code !== 0) throw new Error("未能读取本机字体，请重试");
+  const names: unknown = JSON.parse(output);
+  if (
+    !Array.isArray(names) ||
+    !names.length ||
+    names.some((name) => typeof name !== "string")
+  ) {
+    throw new Error("未能读取本机字体，请重试");
+  }
+  return (names as string[]).sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
 let worker: ReturnType<typeof Bun.spawn>;
 let nextId = 0;
 const pending = new Map<

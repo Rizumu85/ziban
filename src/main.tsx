@@ -82,6 +82,13 @@ if (process.env.ZIBAN_INSPECT === "1") {
           Number(body.x),
           Number(body.y),
         );
+      if (url.pathname === "/hover")
+        (inspection.renderer as any).simulateMouseMove(
+          Number(body.x),
+          Number(body.y),
+        );
+      if (url.pathname === "/focus")
+        inspection.renderer.focusElement?.(Number(body.id));
       if (url.pathname === "/key")
         (inspection.renderer as any).simulateKeystrokes(String(body.key));
       if (url.pathname === "/scroll")

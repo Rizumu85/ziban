@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
+mod fonts;
 use std::{
     io::{self, BufRead, Write},
     path::PathBuf,
@@ -287,6 +288,18 @@ fn monitor() {
 }
 
 fn main() {
+    // This read-only command exits before reading preferences, registering
+    // hotkeys, initializing UIA, or observing the user's foreground window.
+    if std::env::args().nth(1).as_deref() == Some("--list-fonts") {
+        match fonts::list() {
+            Ok(names) => emit(json!(names)),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     let preferences = load();
     AUTOMATIC.store(
         preferences["automatic"].as_bool().unwrap_or(true),

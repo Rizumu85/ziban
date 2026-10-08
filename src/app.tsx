@@ -21,6 +21,7 @@ import {
   hideLabel,
   passLabel,
   hotkeys,
+  listSystemFonts,
 } from "./companion";
 import * as native from "./platform/window";
 import { FONT_UI, PALETTES, type Palette } from "./theme";
@@ -187,14 +188,24 @@ export function App() {
   let loadedPreferences = false;
   let lastRemembered = "";
   const glyphRefs = new Map<number, number>();
-  const fonts = [
-    ...new Set([
-      "LXGW WenKai",
-      "Noto Serif SC",
-      "MiSans VF",
-      ...native.listFonts(),
-    ]),
-  ];
+  const bundledFonts = ["LXGW WenKai", "Noto Serif SC", "MiSans VF"];
+  const [fonts, setFonts] = createSignal(bundledFonts);
+  const [fontError, setFontError] = createSignal("");
+  let loadingFonts = false,
+    disposed = false;
+  async function refreshFonts() {
+    if (loadingFonts) return;
+    loadingFonts = true;
+    setFontError("");
+    try {
+      const system = await listSystemFonts();
+      if (!disposed) setFonts([...new Set([...bundledFonts, ...system])]);
+    } catch {
+      if (!disposed) setFontError("未能读取本机字体，请重试");
+    } finally {
+      loadingFonts = false;
+    }
+  }
   const chars = createMemo(() =>
     Array.from(text().trim().replace(/\r\n?/g, "\n")),
   );
@@ -314,6 +325,7 @@ export function App() {
     renderer.blur?.();
   }
   function chooseFont(target: "fontLeft" | "fontRight") {
+    void refreshFonts();
     setFontTarget(target);
     setFontSearch("");
     choosePanel("fonts");
@@ -394,6 +406,7 @@ export function App() {
     onCleanup(() => clearInterval(timer));
   });
   onMount(() => {
+    void refreshFonts();
     native.decorate();
     native.resize(WIDTH, windowHeight());
     native.setIcon();
@@ -418,6 +431,8 @@ export function App() {
       renderer,
       setText: changeText,
       getState: () => ({
+        fontCount: fonts().length,
+        fontError: fontError(),
         text: text(),
         character: character(),
         selected: selected(),
@@ -481,6 +496,7 @@ export function App() {
           : setPlaying(!playing());
     };
     onCleanup(() => {
+      disposed = true;
       unsubscribe();
       clearTimeout(historyTimer);
       native.endDrag();
@@ -1100,7 +1116,26 @@ export function App() {
             </div>
           </Show>
           <Show when={panel() === "fonts"}>
+            <Show when={fontError()}>
+              <div
+                style={{
+                  ...row,
+                  justifyContent: "space-between",
+                  flexShrink: 0,
+                }}
+              >
+                <Label color={palette().inkMuted} size={12}>
+                  {fontError()}
+                </Label>
+                <Button
+                  label="重试"
+                  palette={palette()}
+                  onClick={() => void refreshFonts()}
+                />
+              </div>
+            </Show>
             <input
+              testId="font-search"
               value={fontSearch()}
               onChange={(e) => setFontSearch(e.value ?? "")}
               onFocus={() => setInputFocused(true)}
@@ -1119,7 +1154,7 @@ export function App() {
               }}
             />
             <For
-              each={fonts.filter((font) =>
+              each={fonts().filter((font) =>
                 `${font} ${fontName(font)}`
                   .toLowerCase()
                   .includes(fontSearch().toLowerCase()),
@@ -1127,6 +1162,7 @@ export function App() {
             >
               {(font) => (
                 <div
+                  testId={`font:${font}`}
                   style={{
                     ...row,
                     minHeight: 37,

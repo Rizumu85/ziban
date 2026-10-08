@@ -1,4 +1,4 @@
-import { dlopen, FFIType as T, ptr, JSCallback } from "bun:ffi";
+import { dlopen, FFIType as T, ptr } from "bun:ffi";
 import { findProcessWindowByTitle } from "./window-lookup";
 import { dirname, resolve, basename } from "node:path";
 import { offscreen } from "../runtime";
@@ -29,8 +29,6 @@ const u = dlopen("user32.dll", {
   GetSystemMetrics: { args: [T.i32], returns: T.i32 },
   GetAsyncKeyState: { args: [T.i32], returns: T.i16 },
   PostMessageW: { args: [T.ptr, T.u32, T.u64, T.i64], returns: T.bool },
-  GetDC: { args: [T.ptr], returns: T.ptr },
-  ReleaseDC: { args: [T.ptr, T.ptr], returns: T.i32 },
   SystemParametersInfoW: {
     args: [T.u32, T.u32, T.ptr, T.u32],
     returns: T.bool,
@@ -214,34 +212,4 @@ export function setIcon() {
     u.symbols.SendMessageW(h, 0x80, 2n, BigInt(small));
   }
   if (big) u.symbols.SendMessageW(h, 0x80, 1n, BigInt(big));
-}
-export function listFonts(): string[] {
-  const g = dlopen("gdi32.dll", {
-    EnumFontFamiliesExW: {
-      args: [T.ptr, T.ptr, T.function, T.i64, T.u32],
-      returns: T.i32,
-    },
-  });
-  const names = new Set<string>(["Noto Serif SC", "LXGW WenKai", "MiSans VF"]);
-  const { toArrayBuffer } = require("bun:ffi") as typeof import("bun:ffi");
-  const callback = new JSCallback(
-    (font: number) => {
-      const b = Buffer.from(toArrayBuffer(font, 28, 64));
-      const name = b.toString("utf16le").split("\0")[0];
-      if (name && !name.startsWith("@")) names.add(name);
-      return 1;
-    },
-    { args: [T.ptr, T.ptr, T.u32, T.i64], returns: T.i32 },
-  );
-  const dc = u.symbols.GetDC(null);
-  const logfont = new Uint8Array(92);
-  logfont[23] = 1;
-  try {
-    g.symbols.EnumFontFamiliesExW(dc, ptr(logfont), callback, 0n, 0);
-  } finally {
-    callback.close();
-    u.symbols.ReleaseDC(null, dc);
-    g.close();
-  }
-  return [...names].sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
