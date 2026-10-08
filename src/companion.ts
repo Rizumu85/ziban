@@ -5,6 +5,7 @@ import { offscreen } from "./runtime";
 export interface Preferences {
   schemaVersion: number;
   automatic: boolean;
+  doubleCtrl: boolean;
   pinned: boolean;
   grid: boolean;
   compare: boolean;
@@ -18,6 +19,7 @@ export interface Preferences {
 export const defaults: Preferences = {
   schemaVersion: 2,
   automatic: true,
+  doubleCtrl: true,
   pinned: true,
   grid: false,
   compare: false,
@@ -34,8 +36,8 @@ export function sanitize(v: Partial<Preferences>): Preferences {
     ...defaults,
     ...Object.fromEntries(
       (modern
-        ? ["automatic", "pinned", "grid", "compare", "dark"]
-        : ["automatic", "pinned", "dark"]
+        ? ["automatic", "doubleCtrl", "pinned", "grid", "compare", "dark"]
+        : ["automatic", "doubleCtrl", "pinned", "dark"]
       )
         .filter((k) => typeof v[k as keyof Preferences] === "boolean")
         .map((k) => [k, v[k as keyof Preferences]]),
@@ -70,14 +72,14 @@ export const [preferences, setPreferences] =
   createSignal<Preferences>(defaults);
 export const [workerError, setWorkerError] = createSignal("");
 export const [ready, setReady] = createSignal(false);
-export const [summonLabel, setSummonLabel] = createSignal("Ctrl Alt Space");
-export const [hideLabel, setHideLabel] = createSignal("Ctrl Alt H");
-export const [passLabel, setPassLabel] = createSignal("Ctrl Alt P");
-export const [hotkeys, setHotkeys] = createSignal({
-  summon: false,
-  hide: false,
-  pass: false,
-});
+export const [activationReady, setActivationReady] = createSignal(false);
+export const canSummon = () => preferences().doubleCtrl && activationReady();
+const activationError = "双击右 Ctrl 暂不可用，可直接点击输入框";
+function activationStatus(available: boolean) {
+  setActivationReady(available);
+  if (!available && preferences().doubleCtrl) setWorkerError(activationError);
+  else if (workerError() === activationError) setWorkerError("");
+}
 const listeners = new Set<(event: Record<string, any>) => void>();
 export const subscribe = (fn: (event: Record<string, any>) => void) => {
   listeners.add(fn);
@@ -143,6 +145,7 @@ export function request(command: string, params: object = {}): Promise<any> {
 }
 export function startWorker() {
   if (offscreen) {
+    setActivationReady(true);
     setReady(true);
     return;
   }
@@ -183,22 +186,17 @@ export function startWorker() {
         }
         if (e.event === "ready") {
           setPreferences(sanitize(e.preferences));
-          setSummonLabel(e.hotkeys.summonLabel);
-          setHideLabel(e.hotkeys.hideLabel);
-          setPassLabel(e.hotkeys.passLabel);
-          setHotkeys(e.hotkeys);
+          activationStatus(e.activationReady === true);
           setReady(true);
-          if (!e.hotkeys.summon)
-            setWorkerError("唤起快捷键已被占用，可直接点击输入框");
-          else if (!e.hotkeys.pass || !e.hotkeys.hide)
-            setWorkerError("部分快捷键已被其他软件占用");
         }
+        if (e.event === "activationStatus") activationStatus(e.available === true);
         if (e.event === "warning") setWorkerError(e.message);
         for (const listener of listeners) listener(e);
       }
     }
   })().catch(() => setWorkerError("系统助手连接中断，请重开字伴"));
   void worker.exited.then(() => {
+    setActivationReady(false);
     setReady(false);
     setWorkerError("系统助手已退出，请重开字伴");
     for (const p of pending.values()) {

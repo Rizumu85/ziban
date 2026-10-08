@@ -1,4 +1,6 @@
 use serde_json::{Value, json};
+mod activation;
+mod double_tap;
 mod fonts;
 use std::{
     io::{self, BufRead, Write},
@@ -26,6 +28,8 @@ use windows::Win32::{
 static APP: AtomicIsize = AtomicIsize::new(0);
 static PREVIOUS: AtomicIsize = AtomicIsize::new(0);
 static AUTOMATIC: AtomicBool = AtomicBool::new(true);
+static DOUBLE_CTRL: AtomicBool = AtomicBool::new(true);
+const UPDATE_ACTIVATION: u32 = WM_APP + 1;
 static LOOP_THREAD: AtomicU32 = AtomicU32::new(0);
 static OUTPUT: Mutex<()> = Mutex::new(());
 
@@ -242,13 +246,13 @@ unsafe fn chinese_mode(foreground: HWND) -> bool {
 fn monitor() {
     unsafe {
         if CoInitializeEx(None, COINIT_MULTITHREADED).is_err() {
-            emit(json!({"event":"warning","message":"自动唤起不可用；请用 Ctrl + Alt + 空格"}));
+            emit(json!({"event":"warning","message":"自动唤起不可用；可双击右 Ctrl 或点击输入框"}));
             return;
         }
         let automation: windows::core::Result<IUIAutomation> =
             CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER);
         let Ok(automation) = automation else {
-            emit(json!({"event":"warning","message":"无法识别文本框；请用快捷键唤起"}));
+            emit(json!({"event":"warning","message":"无法识别文本框；可双击右 Ctrl 或点击输入框"}));
             return;
         };
         let mut last_window = HWND::default();
@@ -289,7 +293,7 @@ fn monitor() {
 
 fn main() {
     // This read-only command exits before reading preferences, registering
-    // hotkeys, initializing UIA, or observing the user's foreground window.
+    // input observation, initializing UIA, or observing the foreground window.
     if std::env::args().nth(1).as_deref() == Some("--list-fonts") {
         match fonts::list() {
             Ok(names) => emit(json!(names)),
@@ -301,45 +305,26 @@ fn main() {
         return;
     }
     let preferences = load();
+    DOUBLE_CTRL.store(
+        preferences["doubleCtrl"].as_bool().unwrap_or(true),
+        Ordering::Relaxed,
+    );
     AUTOMATIC.store(
         preferences["automatic"].as_bool().unwrap_or(true),
         Ordering::Relaxed,
     );
+    let mut listener = activation::Listener::new();
+    let activation_ready = listener.as_mut().is_ok_and(|listener| {
+        listener
+            .set_enabled(DOUBLE_CTRL.load(Ordering::Relaxed))
+            .is_ok()
+    });
     unsafe {
         LOOP_THREAD.store(GetCurrentThreadId(), Ordering::Relaxed);
         let mut message = MSG::default();
         let _ = PeekMessageW(&mut message, None, 0, 0, PM_NOREMOVE);
-        let primary = RegisterHotKey(
-            None,
-            1,
-            MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
-            VK_SPACE.0 as u32,
-        )
-        .is_ok();
-        let summon =
-            primary || RegisterHotKey(None, 1, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 0x4a).is_ok();
-        let hide_primary =
-            RegisterHotKey(None, 2, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 0x48).is_ok();
-        let hide = hide_primary
-            || RegisterHotKey(
-                None,
-                2,
-                MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT,
-                0x48,
-            )
-            .is_ok();
-        let pass_primary =
-            RegisterHotKey(None, 3, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 0x50).is_ok();
-        let pass = pass_primary
-            || RegisterHotKey(
-                None,
-                3,
-                MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT,
-                0x50,
-            )
-            .is_ok();
         emit(
-            json!({"event":"ready","preferences":preferences,"hotkeys":{"summon":summon,"hide":hide,"pass":pass,"summonLabel":if primary {"Ctrl Alt Space"} else {"Ctrl Alt J"},"hideLabel":if hide_primary {"Ctrl Alt H"}else{"Ctrl Alt Shift H"},"passLabel":if pass_primary {"Ctrl Alt P"}else{"Ctrl Alt Shift P"}}}),
+            json!({"event":"ready","preferences":preferences,"activationReady":activation_ready && DOUBLE_CTRL.load(Ordering::Relaxed)}),
         );
     }
     thread::spawn(monitor);
@@ -366,6 +351,17 @@ fn main() {
                     let p = &command["preferences"];
                     save(p).map_err(|e| e.to_string())?;
                     AUTOMATIC.store(p["automatic"].as_bool().unwrap_or(true), Ordering::Relaxed);
+                    let enabled = p["doubleCtrl"].as_bool().unwrap_or(true);
+                    if DOUBLE_CTRL.swap(enabled, Ordering::Relaxed) != enabled {
+                        unsafe {
+                            let _ = PostThreadMessageW(
+                                LOOP_THREAD.load(Ordering::Relaxed),
+                                UPDATE_ACTIVATION,
+                                WPARAM(0),
+                                LPARAM(0),
+                            );
+                        }
+                    }
                     Ok(json!({}))
                 }
                 "return" => {
@@ -426,17 +422,35 @@ fn main() {
     unsafe {
         let mut message = MSG::default();
         while GetMessageW(&mut message, None, 0, 0).0 > 0 {
-            if message.message == WM_HOTKEY {
-                match message.wParam.0 {
-                    1 => activate("hotkey"),
-                    2 => emit(json!({"event":"toggleHidden"})),
-                    3 => emit(json!({"event":"togglePass"})),
-                    _ => {}
+            if message.message == UPDATE_ACTIVATION {
+                if listener.is_err() {
+                    listener = activation::Listener::new();
+                }
+                let available = listener.as_mut().is_ok_and(|listener| {
+                    listener
+                        .set_enabled(DOUBLE_CTRL.load(Ordering::Relaxed))
+                        .is_ok()
+                });
+                emit(
+                    json!({"event":"activationStatus","available":available && DOUBLE_CTRL.load(Ordering::Relaxed)}),
+                );
+            }
+            if let Ok(listener) = &mut listener {
+                if listener.process(&message, APP.load(Ordering::Relaxed)) {
+                    activate("doubleCtrl");
                 }
             }
-        }
-        for id in 1..=3 {
-            let _ = UnregisterHotKey(None, id);
+            if message.message == WM_INPUT {
+                // Required cleanup for foreground Raw Input packets.
+                let _ = DefWindowProcW(
+                    message.hwnd,
+                    message.message,
+                    message.wParam,
+                    message.lParam,
+                );
+            } else {
+                let _ = DispatchMessageW(&message);
+            }
         }
     }
 }

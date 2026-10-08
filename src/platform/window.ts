@@ -107,7 +107,10 @@ export function hide() {
   if (h) u.symbols.ShowWindow(h, 0);
 }
 export function reveal(activate = false) {
-  if (offscreen) return;
+  if (offscreen) {
+    preparePreview();
+    return;
+  }
   const h = handle();
   if (h) {
     u.symbols.ShowWindow(h, activate ? 1 : 4);

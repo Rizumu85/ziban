@@ -17,10 +17,7 @@ import {
   request,
   subscribe,
   flushPreferences,
-  summonLabel,
-  hideLabel,
-  passLabel,
-  hotkeys,
+  canSummon,
   listSystemFonts,
 } from "./companion";
 import * as native from "./platform/window";
@@ -285,12 +282,13 @@ export function App() {
     setTimeout(() => input && renderer.focusElement?.(input.id), 20);
   }
   function summon() {
+    const resume = editing() || passed();
     setPassed(false);
     setHidden(false);
     native.passThrough(false);
     native.reveal(true);
     if (!offscreen) renderer.activateWindow?.();
-    edit(true);
+    edit(!resume);
   }
   function openCharacter(index: number) {
     if (!isHan(chars()[index] ?? "")) return;
@@ -331,7 +329,7 @@ export function App() {
     choosePanel("fonts");
   }
   function togglePass() {
-    if (!hotkeys().pass || !hotkeys().summon) return;
+    if (!canSummon()) return;
     const value = !passed();
     setPassed(value);
     native.passThrough(value);
@@ -381,6 +379,12 @@ export function App() {
   });
   createEffect(() => native.resize(WIDTH, windowHeight()));
   createEffect(() => {
+    if (!canSummon() && passed()) {
+      setPassed(false);
+      native.passThrough(false);
+    }
+  });
+  createEffect(() => {
     character();
     setCompleted(0);
     setFraction(0);
@@ -424,8 +428,6 @@ export function App() {
         setLastActivation(event.reason);
         summon();
       }
-      if (event.event === "togglePass") togglePass();
-      if (event.event === "toggleHidden") hidden() ? summon() : hide();
     });
     inspection = {
       renderer,
@@ -450,9 +452,8 @@ export function App() {
         error: workerError(),
         passed: passed(),
         lastActivation: lastActivation(),
-        summonLabel: summonLabel(),
-        hideLabel: hideLabel(),
-        passLabel: passLabel(),
+        canSummon: canSummon(),
+        hidden: hidden(),
       }),
       action: (action) => {
         if (action === "settings") choosePanel("settings");
@@ -466,6 +467,7 @@ export function App() {
           renderer.blur?.();
         }
         if (action === "edit") edit();
+        if (action === "summon") summon();
         if (action === "stroke") openCharacter(hanIndices()[0] ?? -1);
         if (action === "next") nextCharacter(1);
         if (action === "previous") nextCharacter(-1);
@@ -582,10 +584,10 @@ export function App() {
         <Button
           icon="minus"
           iconOnly
-          label={`隐藏 · ${hideLabel()}`}
+          label="隐藏 · 双击右 Ctrl 唤回"
           palette={palette()}
           onClick={hide}
-          disabled={!hotkeys().summon}
+          disabled={!canSummon()}
         />
         <Button
           icon="close"
@@ -1056,6 +1058,15 @@ export function App() {
               palette={palette()}
             />
             <Setting
+              title="双击右 Ctrl 唤起"
+              note="轻点两次；隐藏或鼠标穿透后也可唤回"
+              value={preferences().doubleCtrl}
+              change={() =>
+                updatePreferences({ doubleCtrl: !preferences().doubleCtrl })
+              }
+              palette={palette()}
+            />
+            <Setting
               title="切换中文时唤起"
               note="不在文本框中时生效"
               value={preferences().automatic}
@@ -1081,38 +1092,6 @@ export function App() {
                 palette={palette()}
                 onClick={() => choosePanel("history")}
               />
-            </div>
-            <div
-              style={{
-                ...row,
-                height: 38,
-                justifyContent: "space-between",
-                flexShrink: 0,
-                borderTopWidth: 1,
-                borderColor: palette().surfaceDivider,
-              }}
-            >
-              <Label color={palette().inkMuted} size={12}>
-                唤起快捷键
-              </Label>
-              <Label color={palette().inkSoft} size={12}>
-                {summonLabel()}
-              </Label>
-            </div>
-            <div
-              style={{
-                ...row,
-                height: 34,
-                justifyContent: "space-between",
-                flexShrink: 0,
-              }}
-            >
-              <Label color={palette().inkMuted} size={12}>
-                穿透 / 恢复
-              </Label>
-              <Label color={palette().inkSoft} size={12}>
-                {passLabel()}
-              </Label>
             </div>
           </Show>
           <Show when={panel() === "fonts"}>
@@ -1315,13 +1294,13 @@ export function App() {
               iconOnly
               label={
                 passed()
-                  ? `恢复操作 · ${passLabel()}`
-                  : `鼠标穿透 · ${passLabel()}`
+                  ? "恢复操作 · 双击右 Ctrl"
+                  : "鼠标穿透 · 双击右 Ctrl 恢复"
               }
               palette={palette()}
               selected={passed()}
               onClick={togglePass}
-              disabled={!hotkeys().pass || !hotkeys().summon}
+              disabled={!canSummon()}
             />
           </Show>
         </div>
