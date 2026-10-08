@@ -3,3 +3,4 @@
 // the virtual desktop before first show; Windows does not paint hidden HWNDs.
 export const inspecting = process.env.ZIBAN_INSPECT === "1";
 export const offscreen = inspecting;
+export const startupLaunch = process.argv.includes("--startup");

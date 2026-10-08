@@ -25,7 +25,15 @@ import { FONT_UI, PALETTES, type Palette } from "./theme";
 import { Label, Icon, Button, Toggle, row, col, ease, reduced } from "./ui";
 import { loadStrokes, strokeSvg } from "./strokes";
 import { glyphOutline } from "./glyphs";
-import { offscreen } from "./runtime";
+import { offscreen, startupLaunch } from "./runtime";
+import {
+  startupEnabled,
+  startupLoaded,
+  startupBusy,
+  startupError,
+  refreshStartup,
+  toggleStartup,
+} from "./startup";
 import type { EventPayload } from "@gpuix/native";
 let keyHandler: ((event: EventPayload) => void) | undefined;
 export function windowKeyDown(event: EventPayload) {
@@ -123,6 +131,7 @@ function Setting(p: {
   change: () => void;
   palette: Palette;
   note?: string;
+  disabled?: boolean;
 }) {
   return (
     <div
@@ -149,6 +158,7 @@ function Setting(p: {
         onChange={p.change}
         palette={p.palette}
         label={p.title}
+        disabled={p.disabled}
       />
     </div>
   );
@@ -172,7 +182,7 @@ export function App() {
   const [fraction, setFraction] = createSignal(0);
   const [speed, setSpeed] = createSignal(1);
   const [passed, setPassed] = createSignal(false);
-  const [hidden, setHidden] = createSignal(false);
+  const [hidden, setHidden] = createSignal(startupLaunch);
   const [lastActivation, setLastActivation] = createSignal("");
   let input: { id: number } | undefined;
   let sentenceScroll: { id: number } | undefined;
@@ -222,7 +232,11 @@ export function App() {
     chars().length ? Math.min(rows(), visibleRows()) * rowHeight() + 24 : 68;
   const bodyHeight = () =>
     panel()
-      ? 310 + (panel() === "settings" && preferences().compare ? 40 : 0)
+      ? panel() === "settings"
+        ? 353 +
+          (preferences().compare ? 40 : 0) +
+          (startupError() && !startupLoaded() ? 34 : 0)
+        : 310
       : sheetHeight();
   const footerHeight = () =>
     !panel() || (panel() === "history" && preferences().history.length)
@@ -318,6 +332,7 @@ export function App() {
   }
   function choosePanel(value: Panel) {
     setPanel(value);
+    if (value === "settings" && ready()) void refreshStartup();
     setPlaying(false);
     setInputFocused(false);
     renderer.blur?.();
@@ -379,6 +394,17 @@ export function App() {
   });
   createEffect(() => native.resize(WIDTH, windowHeight()));
   createEffect(() => {
+    // A background launch must still offer a clickable recovery path if both
+    // activation methods are disabled or the helper cannot start.
+    if (
+      startupLaunch && hidden() &&
+      (workerError() || (ready() && !canSummon() && !preferences().automatic))
+    ) {
+      setHidden(false);
+      native.reveal(false);
+    }
+  });
+  createEffect(() => {
     if (!canSummon() && passed()) {
       setPassed(false);
       native.passThrough(false);
@@ -423,7 +449,10 @@ export function App() {
     };
     if (ready()) attach();
     const unsubscribe = subscribe((event) => {
-      if (event.event === "ready") attach();
+      if (event.event === "ready") {
+        attach();
+        if (panel() === "settings") void refreshStartup();
+      }
       if (event.event === "activate") {
         setLastActivation(event.reason);
         summon();
@@ -454,6 +483,10 @@ export function App() {
         lastActivation: lastActivation(),
         canSummon: canSummon(),
         hidden: hidden(),
+        startup: {
+          enabled: startupEnabled(), loaded: startupLoaded(),
+          busy: startupBusy(), error: startupError(), launch: startupLaunch,
+        },
       }),
       action: (action) => {
         if (action === "settings") choosePanel("settings");
@@ -1075,6 +1108,25 @@ export function App() {
               }
               palette={palette()}
             />
+            <Setting
+              title="开机自启"
+              note={
+                startupError() ||
+                (startupBusy() ? "正在同步设置…" : "登录 Windows 后在后台运行")
+              }
+              value={startupEnabled()}
+              disabled={!ready() || !startupLoaded() || startupBusy()}
+              change={() => void toggleStartup()}
+              palette={palette()}
+            />
+            <Show when={startupError() && !startupLoaded()}>
+              <Button
+                label="重新读取"
+                palette={palette()}
+                disabled={!ready() || startupBusy()}
+                onClick={() => void refreshStartup()}
+              />
+            </Show>
             <div
               style={{
                 ...row,

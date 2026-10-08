@@ -216,6 +216,7 @@ export function Toggle(p: {
   onChange: () => void;
   palette: Palette;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <div
@@ -223,10 +224,13 @@ export function Toggle(p: {
       testId={`switch:${p.label}`}
       aria-label={p.label}
       aria-valuetext={p.value ? "开" : "关"}
-      tabIndex={0}
-      onClick={p.onChange}
+      aria-disabled={p.disabled}
+      tabIndex={p.disabled ? -1 : 0}
+      onClick={() => {
+        if (!p.disabled) p.onChange();
+      }}
       onKeyDown={(e) => {
-        if (e.key === "enter" || e.key === "space") p.onChange();
+        if (!p.disabled && (e.key === "enter" || e.key === "space")) p.onChange();
       }}
       style={{
         width: 36,
@@ -234,7 +238,8 @@ export function Toggle(p: {
         backgroundColor: p.value ? "#269F90" : p.palette.surfaceLine,
         borderRadius: 999,
         position: "relative",
-        cursor: "pointer",
+        cursor: p.disabled ? "default" : "pointer",
+        opacity: p.disabled ? 0.45 : 1,
       }}
     >
       <motion.div

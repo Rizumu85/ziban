@@ -2,6 +2,7 @@ use serde_json::{Value, json};
 mod activation;
 mod double_tap;
 mod fonts;
+mod startup;
 use std::{
     io::{self, BufRead, Write},
     path::PathBuf,
@@ -363,6 +364,11 @@ fn main() {
                         }
                     }
                     Ok(json!({}))
+                }
+                "startupStatus" => Ok(json!({"enabled":startup::enabled()?})),
+                "setStartup" => {
+                    let enabled = command["enabled"].as_bool().ok_or("missing enabled")?;
+                    Ok(json!({"enabled":startup::set_enabled(enabled)?}))
                 }
                 "return" => {
                     unsafe {

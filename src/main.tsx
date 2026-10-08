@@ -5,10 +5,10 @@ import {
   preparePreview,
 } from "./platform/window";
 import { registerBundledFonts } from "./platform/fonts";
-import { offscreen } from "./runtime";
+import { offscreen, startupLaunch } from "./runtime";
 
 setupProcess();
-if (revealExisting()) process.exit(0);
+if (revealExisting(!startupLaunch)) process.exit(0);
 console.log("Bundled fonts registered:", registerBundledFonts());
 const { render } = await import("@gpuix/solid");
 const appModule = await import("./app");
@@ -22,8 +22,8 @@ render(() => <App />, {
   resizable: false,
   titlebarTransparent: true,
   windowBackground: "blurred",
-  focus: !offscreen && process.env.ZIBAN_BACKGROUND !== "1",
-  show: !offscreen,
+  focus: !offscreen && !startupLaunch && process.env.ZIBAN_BACKGROUND !== "1",
+  show: !offscreen && !startupLaunch,
   onKeyDown: (event, renderer) => {
     appModule.windowKeyDown(event);
     if (event.key === "tab") {
@@ -32,7 +32,7 @@ render(() => <App />, {
     }
   },
 });
-if (offscreen) preparePreview();
+if (offscreen) preparePreview(process.env.ZIBAN_INSPECT_KEEP_HIDDEN !== "1");
 startWorker();
 
 // Opt-in local inspection endpoint for manual development. No server in a normal launch.

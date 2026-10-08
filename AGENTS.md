@@ -8,6 +8,8 @@ Never read text from other apps. Automatic activation observes only input mode a
 
 Manual activation uses two standalone right-Ctrl taps via passive Raw Input in a message-only window, never RegisterHotKey or a keyboard hook. Ordinary keys only cancel the pending gesture; do not retain their codes, translate them into text, or log them. Mouse buttons/wheel, held keys, long presses, device/window changes and key repeats must not turn into an activation. Do not restore fixed global combinations. Inspection must not run the live activation listener; a short registration-only probe may verify cleanup without consuming input messages or activating a window.
 
+Startup is opt-in. Its authoritative setting is the current user's Run entry `Rizum.Ziban`; only an explicit settings action may write it, never ordinary preference saves, launches, or updates. Quote the full EXE path and use `--startup` to launch hidden without focus. A duplicate startup launch must not reveal the existing app. Preview toggles must not alter real startup registration; validate the native adapter under a temporary non-startup registry key and clean it up.
+
 Use builds, type checking, and manual application inspection. Do not run functional test suites. Do not modify the reference app. Keep stdout of the Rust worker protocol-only.
 
 The user continues using this computer during development. Do not take foreground focus, switch system input methods, or synthesize keyboard/mouse input while they are working. Use read-only observations and application-local inspection; arrange any real desktop interaction only when the user explicitly agrees to an idle period. Do not assume exclusive control of the desktop.

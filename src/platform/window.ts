@@ -46,7 +46,7 @@ const shell = dlopen("shell32.dll", {
   SetCurrentProcessExplicitAppUserModelID: { args: [T.ptr], returns: T.i32 },
 });
 export const handle = () => findProcessWindowByTitle(TITLE, false);
-export function preparePreview() {
+export function preparePreview(show = true) {
   if (!offscreen) return;
   const h = handle();
   if (!h) throw new Error("Preview HWND missing");
@@ -55,7 +55,7 @@ export function preparePreview() {
   const left = u.symbols.GetSystemMetrics(76),
     top = u.symbols.GetSystemMetrics(77);
   u.symbols.SetWindowPos(h, 0n, left - 4000, top - 4000, 0, 0, 0x15);
-  u.symbols.ShowWindow(h, 4);
+  u.symbols.ShowWindow(h, show ? 4 : 0);
   const rectangle = new Int32Array(4);
   u.symbols.GetWindowRect(h, ptr(rectangle));
   if (rectangle[2]! >= left || rectangle[3]! >= top) {
@@ -132,11 +132,12 @@ export function passThrough(enabled: boolean) {
   if (enabled) u.symbols.SetLayeredWindowAttributes(h, 0, 255, 2);
   u.symbols.SetWindowPos(h, 0n, 0, 0, 0, 0, 0x37);
 }
-export function revealExisting() {
+export function revealExisting(activate = true) {
   if (offscreen) return false;
   const title = Buffer.from(TITLE + "\0", "utf16le");
   const h = u.symbols.FindWindowW(null, ptr(title));
   if (!h) return false;
+  if (!activate) return true;
   const style = BigInt(u.symbols.GetWindowLongPtrW(h, -20));
   u.symbols.SetWindowLongPtrW(h, -20, style & ~0x08080020n);
   u.symbols.ShowWindow(h, 1);
