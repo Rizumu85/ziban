@@ -125,6 +125,12 @@ function Glyph(p: { char: string; font: string; size: number; color: string }) {
     </Show>
   );
 }
+const SETTINGS_ROW = 43;
+const SETTINGS_HEADING = 24;
+const SETTINGS_GROUP_SPACE = 25; // divider + heading inset
+const SETTINGS_HISTORY_SPACE = 13; // 12 gap + 1 divider
+const OPTIONS_INSET = { top: 10, bottom: 12 };
+
 function Setting(p: {
   title: string;
   value: boolean;
@@ -137,7 +143,7 @@ function Setting(p: {
     <div
       style={{
         ...row,
-        minHeight: 43,
+        minHeight: SETTINGS_ROW,
         gap: 16,
         justifyContent: "space-between",
         flexShrink: 0,
@@ -233,7 +239,9 @@ export function App() {
   const bodyHeight = () =>
     panel()
       ? panel() === "settings"
-        ? 353 +
+        ? OPTIONS_INSET.top + OPTIONS_INSET.bottom +
+          2 * SETTINGS_HEADING + 7 * SETTINGS_ROW +
+          SETTINGS_GROUP_SPACE + SETTINGS_HISTORY_SPACE +
           (preferences().compare ? 40 : 0) +
           (startupError() && !startupLoaded() ? 34 : 0)
         : 310
@@ -439,6 +447,7 @@ export function App() {
     void refreshFonts();
     native.decorate();
     native.resize(WIDTH, windowHeight());
+    if (offscreen) console.log("ICON_DIAG onMount HWND", native.handle());
     native.setIcon();
     const attach = () => {
       const h = native.handle();
@@ -1043,13 +1052,13 @@ export function App() {
             height: bodyHeight(),
             flexShrink: 0,
             overflow: "scroll",
-            paddingLeft: 22,
-            paddingRight: 22,
-            paddingTop: 10,
-            paddingBottom: 12,
           }}
         >
+          <div style={{ ...col, flexShrink: 0, paddingLeft: 22, paddingRight: 22, paddingTop: OPTIONS_INSET.top, paddingBottom: OPTIONS_INSET.bottom }}>
           <Show when={panel() === "settings"}>
+            <div testId="settings:display" style={{ ...row, height: SETTINGS_HEADING, flexShrink: 0 }}>
+              <Label color={palette().inkMuted} size={11}>字帖显示</Label>
+            </div>
             <Setting
               title="双字体对照"
               value={preferences().compare}
@@ -1090,6 +1099,9 @@ export function App() {
               change={() => updatePreferences({ dark: !preferences().dark })}
               palette={palette()}
             />
+            <div testId="settings:activation" style={{ ...row, height: SETTINGS_HEADING + SETTINGS_GROUP_SPACE, marginTop: 0, paddingTop: 24, borderTopWidth: 1, borderColor: palette().surfaceDivider, flexShrink: 0 }}>
+              <Label color={palette().inkMuted} size={11}>启动与唤起</Label>
+            </div>
             <Setting
               title="双击右 Ctrl 唤起"
               note="轻点两次；隐藏或鼠标穿透后也可唤回"
@@ -1130,7 +1142,10 @@ export function App() {
             <div
               style={{
                 ...row,
-                height: 43,
+                height: SETTINGS_ROW + SETTINGS_HISTORY_SPACE,
+                paddingTop: 12,
+                borderTopWidth: 1,
+                borderColor: palette().surfaceDivider,
                 justifyContent: "space-between",
                 flexShrink: 0,
               }}
@@ -1257,6 +1272,7 @@ export function App() {
               </For>
             </Show>
           </Show>
+          </div>
         </div>
       </Show>
       <Show when={workerError()}>

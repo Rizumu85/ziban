@@ -24,7 +24,7 @@ const result = await Bun.build({
       title: "字伴",
       description: "字伴 · Windows 悬浮汉字字帖",
       publisher: "Rizum",
-      version: "0.2.4.0",
+      version: "0.2.5.0",
     },
   },
   define: { "process.env.ZIBAN_INSPECT": '"0"' },
