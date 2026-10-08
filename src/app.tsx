@@ -447,7 +447,6 @@ export function App() {
     void refreshFonts();
     native.decorate();
     native.resize(WIDTH, windowHeight());
-    if (offscreen) console.log("ICON_DIAG onMount HWND", native.handle());
     native.setIcon();
     const attach = () => {
       const h = native.handle();
