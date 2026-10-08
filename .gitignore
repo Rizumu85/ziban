@@ -1,0 +1,9 @@
+node_modules/
+target/
+dist/
+vendor/
+*.log
+release/
+.env
+.env.*
+!.env.example
